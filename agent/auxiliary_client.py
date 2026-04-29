@@ -1127,7 +1127,8 @@ def _resolve_api_key_provider() -> Tuple[Optional[OpenAI], Optional[str]]:
 
 
 
-def _try_openrouter() -> Tuple[Optional[OpenAI], Optional[str]]:
+def _try_openrouter(model: Optional[str] = None) -> Tuple[Optional[OpenAI], Optional[str]]:
+    effective_model = model or _OPENROUTER_MODEL
     pool_present, entry = _select_pool_entry("openrouter")
     if pool_present:
         or_key = _pool_runtime_api_key(entry)
@@ -1136,14 +1137,14 @@ def _try_openrouter() -> Tuple[Optional[OpenAI], Optional[str]]:
         base_url = _pool_runtime_base_url(entry, OPENROUTER_BASE_URL) or OPENROUTER_BASE_URL
         logger.debug("Auxiliary client: OpenRouter via pool")
         return OpenAI(api_key=or_key, base_url=base_url,
-                       default_headers=_OR_HEADERS), _OPENROUTER_MODEL
+                       default_headers=_OR_HEADERS), effective_model
 
     or_key = os.getenv("OPENROUTER_API_KEY")
     if not or_key:
         return None, None
     logger.debug("Auxiliary client: OpenRouter")
     return OpenAI(api_key=or_key, base_url=OPENROUTER_BASE_URL,
-                   default_headers=_OR_HEADERS), _OPENROUTER_MODEL
+                   default_headers=_OR_HEADERS), effective_model
 
 
 def _describe_openrouter_unavailable() -> str:
@@ -2440,7 +2441,7 @@ def _resolve_strict_vision_backend(
     if provider == "copilot":
         return resolve_provider_client("copilot", model, is_vision=True)
     if provider == "openrouter":
-        return _try_openrouter()
+        return _try_openrouter(model)
     if provider == "nous":
         return _try_nous(vision=True)
     if provider == "openai-codex":
@@ -2580,7 +2581,8 @@ def resolve_vision_provider_client(
         for candidate in _VISION_AUTO_PROVIDER_ORDER:
             if candidate == main_provider:
                 continue  # already tried above
-            sync_client, default_model = _resolve_strict_vision_backend(candidate)
+            sync_client, default_model = _resolve_strict_vision_backend(
+                candidate, resolved_model)
             if sync_client is not None:
                 return _finalize(candidate, sync_client, default_model)
 
